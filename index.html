@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>随机迷宫生成器</title>
+    <style>
+        /* CSS样式 */
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            background-color: #000;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+        }
+        #controls select, #controls button, #controls input {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="mazeCanvas"></canvas>
+    <div id="controls">
+        <label for="mazeSize">迷宫大小：</label>
+        <input type="number" id="mazeSize" value="20" min="5" max="50">
+        <button id="generateButton">生成迷宫</button>
+        <select id="algorithmSelect">
+            <option value="bfs">广度优先搜索</option>
+            <option value="dfs">深度优先搜索</option>
+        </select>
+        <button id="solveButton">求解迷宫</button>
+    </div>
+    <script>
+        // JavaScript代码
+        const canvas = document.getElementById('mazeCanvas');
+        const context = canvas.getContext('2d');
+        const mazeSizeInput = document.getElementById('mazeSize');
+        const generateButton = document.getElementById('generateButton');
+        const solveButton = document.getElementById('solveButton');
+        const algorithmSelect = document.getElementById('algorithmSelect');
+
+        const cellSize = 20;
+        let maze = [];
+        let mazeSize = parseInt(mazeSizeInput.value);
+        let playerPosition = { x: 0, y: 0 };
+        let solving = false;
+
+        // 初始化函数
+        function init() {
+            canvas.width = mazeSize * cellSize;
+            canvas.height = mazeSize * cellSize;
+            generateMaze();
+            drawMaze();
+            document.addEventListener('keydown', handleKeyDown);
+            generateButton.addEventListener('click', regenerateMaze);
+            solveButton.addEventListener('click', solveMaze);
+        }
+
+        /**
+         * 生成迷宫
+         */
+        function generateMaze() {
+            maze = [];
+            for (let i = 0; i < mazeSize; i++) {
+                let row = [];
+                for (let j = 0; j < mazeSize; j++) {
+                    row.push({
+                        top: true,
+                        right: true,
+                        bottom: true,
+                        left: true,
+                        visited: false
+                    });
+                }
+                maze.push(row);
+            }
+            createMaze(0, 0);
+            playerPosition = { x: 0, y: 0 };
+        }
+
+        /**
+         * 使用递归回溯算法创建迷宫
+         * @param {number} x 当前x坐标
+         * @param {number} y 当前y坐标
+         */
+        function createMaze(x, y) {
+            maze[y][x].visited = true;
+            let directions = ['top', 'right', 'bottom', 'left'];
+            directions = shuffleArray(directions);
+
+            for (let direction of directions) {
+                let nx = x;
+                let ny = y;
+
+                if (direction === 'top') ny--;
+                if (direction === 'right') nx++;
+                if (direction === 'bottom') ny++;
+                if (direction === 'left') nx--;
+
+                if (nx >= 0 && nx < mazeSize && ny >= 0 && ny < mazeSize && !maze[ny][nx].visited) {
+                    maze[y][x][direction] = false;
+                    if (direction === 'top') maze[ny][nx]['bottom'] = false;
+                    if (direction === 'right') maze[ny][nx]['left'] = false;
+                    if (direction === 'bottom') maze[ny][nx]['top'] = false;
+                    if (direction === 'left') maze[ny][nx]['right'] = false;
+
+                    createMaze(nx, ny);
+                }
+            }
+        }
+
+        /**
+         * 绘制迷宫和玩家
+         */
+        function drawMaze() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.strokeStyle = '#fff';
+            for (let y = 0; y < mazeSize; y++) {
+                for (let x = 0; x < mazeSize; x++) {
+                    let cell = maze[y][x];
+                    let px = x * cellSize;
+                    let py = y * cellSize;
+
+                    if (cell.top) {
+                        context.beginPath();
+                        context.moveTo(px, py);
+                        context.lineTo(px + cellSize, py);
+                        context.stroke();
+                    }
+                    if (cell.right) {
+                        context.beginPath();
+                        context.moveTo(px + cellSize, py);
+                        context.lineTo(px + cellSize, py + cellSize);
+                        context.stroke();
+                    }
+                    if (cell.bottom) {
+                        context.beginPath();
+                        context.moveTo(px + cellSize, py + cellSize);
+                        context.lineTo(px, py + cellSize);
+                        context.stroke();
+                    }
+                    if (cell.left) {
+                        context.beginPath();
+                        context.moveTo(px, py + cellSize);
+                        context.lineTo(px, py);
+                        context.stroke();
+                    }
+                }
+            }
+            // 绘制玩家
+            context.fillStyle = '#0f0';
+            context.fillRect(
+                playerPosition.x * cellSize + 4,
+                playerPosition.y * cellSize + 4,
+                cellSize - 8,
+                cellSize - 8
+            );
+        }
+
+        /**
+         * 处理键盘事件
+         * @param {KeyboardEvent} event 键盘事件
+         */
+        function handleKeyDown(event) {
+            if (solving) return;
+            let key = event.key.toLowerCase();
+            let x = playerPosition.x;
+            let y = playerPosition.y;
+
+            if (key === 'w' && !maze[y][x].top) y--;
+            if (key === 's' && !maze[y][x].bottom) y++;
+            if (key === 'a' && !maze[y][x].left) x--;
+            if (key === 'd' && !maze[y][x].right) x++;
+
+            if (x >= 0 && x < mazeSize && y >= 0 && y < mazeSize) {
+                playerPosition = { x, y };
+                drawMaze();
+            }
+        }
+
+        /**
+         * 重置迷宫
+         */
+        function regenerateMaze() {
+            mazeSize = parseInt(mazeSizeInput.value);
+            if (isNaN(mazeSize) || mazeSize < 5 || mazeSize > 50) {
+                alert('请输入5到50之间的迷宫大小。');
+                return;
+            }
+            canvas.width = mazeSize * cellSize;
+            canvas.height = mazeSize * cellSize;
+            generateMaze();
+            drawMaze();
+        }
+
+        /**
+         * 求解迷宫
+         */
+        async function solveMaze() {
+            solving = true;
+            let algorithm = algorithmSelect.value;
+            let visited = Array.from({ length: mazeSize }, () => Array(mazeSize).fill(false));
+            let path = [];
+
+            if (algorithm === 'bfs') {
+                path = await bfs(0, 0, visited);
+            } else {
+                path = await dfs(0, 0, visited);
+            }
+            solving = false;
+        }
+
+        /**
+         * 广度优先搜索算法
+         * @param {number} x 当前x坐标
+         * @param {number} y 当前y坐标
+         * @param {Array} visited 已访问节点
+         */
+        async function bfs(x, y, visited) {
+            let queue = [];
+            queue.push({ x, y, path: [{ x, y }] });
+            visited[y][x] = true;
+
+            while (queue.length > 0) {
+                let current = queue.shift();
+
+                if (current.x === mazeSize - 1 && current.y === mazeSize - 1) {
+                    await animatePath(current.path);
+                    return current.path;
+                }
+
+                let neighbors = getNeighbors(current.x, current.y, visited);
+                for (let neighbor of neighbors) {
+                    visited[neighbor.y][neighbor.x] = true;
+                    queue.push({
+                        x: neighbor.x,
+                        y: neighbor.y,
+                        path: current.path.concat({ x: neighbor.x, y: neighbor.y })
+                    });
+                }
+                await sleep(10);
+            }
+            return [];
+        }
+
+        /**
+         * 深度优先搜索算法
+         * @param {number} x 当前x坐标
+         * @param {number} y 当前y坐标
+         * @param {Array} visited 已访问节点
+         * @param {Array} path 当前路径
+         */
+        async function dfs(x, y, visited, path = [{ x, y }]) {
+            if (x === mazeSize - 1 && y === mazeSize - 1) {
+                await animatePath(path);
+                return path;
+            }
+            visited[y][x] = true;
+
+            let neighbors = getNeighbors(x, y, visited);
+            for (let neighbor of neighbors) {
+                if (!visited[neighbor.y][neighbor.x]) {
+                    await sleep(10);
+                    path.push({ x: neighbor.x, y: neighbor.y });
+                    let result = await dfs(neighbor.x, neighbor.y, visited, path);
+                    if (result) return result;
+                    path.pop();
+                }
+            }
+        }
+
+        /**
+         * 获取相邻可移动的单元格
+         * @param {number} x 当前x坐标
+         * @param {number} y 当前y坐标
+         * @param {Array} visited 已访问节点
+         */
+        function getNeighbors(x, y, visited) {
+            let neighbors = [];
+            let cell = maze[y][x];
+
+            if (!cell.top && y > 0 && !visited[y - 1][x]) neighbors.push({ x: x, y: y - 1 });
+            if (!cell.right && x < mazeSize - 1 && !visited[y][x + 1]) neighbors.push({ x: x + 1, y: y });
+            if (!cell.bottom && y < mazeSize - 1 && !visited[y + 1][x]) neighbors.push({ x: x, y: y + 1 });
+            if (!cell.left && x > 0 && !visited[y][x - 1]) neighbors.push({ x: x - 1, y: y });
+            return neighbors;
+        }
+
+        /**
+         * 动画展示路径
+         * @param {Array} path 路径数组
+         */
+        async function animatePath(path) {
+            for (let position of path) {
+                playerPosition = position;
+                drawMaze();
+                await sleep(50);
+            }
+        }
+
+        /**
+         * 随机打乱数组
+         * @param {Array} array 输入数组
+         */
+        function shuffleArray(array) {
+            let currentIndex = array.length;
+            let temporaryValue, randomIndex;
+
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                temporaryValue = array[currentIndex];
+                array[currentIndex] = array[randomIndex];
+                array[randomIndex] = temporaryValue;
+            }
+
+            return array;
+        }
+
+        /**
+         * 延迟函数
+         * @param {number} ms 毫秒
+         */
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // 启动程序
+        init();
+    </script>
+</body>
+</html>
